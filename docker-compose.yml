@@ -1,0 +1,35 @@
+services:
+  apache:
+    build: ./docker/apache
+    container_name: librebooking_apache
+    ports:
+      - "8080:80"
+    volumes:
+      - ./legacy:/var/www/legacy
+      - ./symfony:/var/www/symfony
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: librebooking
+      MYSQL_USER: librebooking
+      MYSQL_PASSWORD: librebooking
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: librebooking_pma
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    ports:
+      - "8081:80"
+
+volumes:
+  db_data:
