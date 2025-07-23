@@ -15,6 +15,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use App\Service\EncryptionService;
 
 #[Route('/account/2fa')]
 class Account2FAController extends AbstractController
@@ -26,14 +27,20 @@ class Account2FAController extends AbstractController
         $this->logger = $logger;
     }
 
-    #[Route('', name: 'app_account_2fa')]
+    #[Route('', name: 'app_account_2fa', methods: ['GET', 'POST'])]
     public function index(
         Request $request,
         EntityManagerInterface $em,
         TotpAuthenticatorInterface $totpAuthenticator,
-        User2FARepository $user2FARepository
+        User2FARepository $user2FARepository,
+        EncryptionService $encryptionService
     ): Response {
-        $userId = $request->query->get('user_id');
+        $encryptedUserId = $request->isMethod('POST')
+            ? $request->request->get('user_id')
+            : $request->query->get('user_id');
+
+        $userId = $encryptionService->decrypt($encryptedUserId);
+            
         $this->logger->info("[2FA Index] Received request for user_id: '{$userId}'");
 
         if (!$userId) {
@@ -203,7 +210,6 @@ class Account2FAController extends AbstractController
             $user2fa->setTempLoginSecret(null);
             $user2fa->setTempLoginExpiresAt(null);
             $em->flush();
-            $this->addFlash('success', 'Authentification à deux facteurs désactivée.');
         } else {
             $this->logger->warning("[2FA Disable] No User2FA record found for userId '{$lookupId}'. Cannot disable.");
             $this->addFlash('warning', '2FA non trouvé pour cet utilisateur.');

@@ -23,7 +23,7 @@ Ce projet implémente un système d'authentification à deux facteurs (2FA) pour
     -   Sur la page de configuration, cochez les trois cases suivantes :
         -   `Créer la base de données (librebooking)Attention: cela va effacer toutes les données existantes`
         -   `Créer le compte utilisateur de la base (librebooking)`
-        -   `Importer des exemples de données. Cela va créer le compte administrateur: admin/password et le compte utilisateur: user/password`
+        -   `Importer des exemples de données. Cela va créer le compte administrateur: admin/popcarte et le compte utilisateur: user/popcarte`
     -   Suivez les étapes restantes pour finaliser la configuration.
 
 ## 🌐 URLs d'accès (après installation)
@@ -52,6 +52,8 @@ Si les identifiants sont valides, le `LoginPresenter` de l'application legacy v�
 ### Étape 3 : Scénarios de redirection
 -   **2FA non configurée ou désactivée** : L'utilisateur est redirigé vers la page d'activation/gestion de la 2FA sur Symfony (`/symfony/account/2fa?user_id=[username]`) où il peut scanner un QR code et valider un premier code TOTP.
 -   **2FA déjà activée** : L'utilisateur est redirigé vers la page de validation de Symfony (`/symfony/security/2fa/login?user_id=[username]`) où il doit entrer le code TOTP actuel de son application d'authentification.
+
+> **Note :** Une fois connecté, l'utilisateur peut à tout moment gérer ses paramètres de double authentification (activer ou désactiver) en se rendant dans le menu "Mon Compte" → "Gérer ma 2FA".
 
 ### Étape 4 : Finalisation de la connexion via un jeton
 -   Après une validation 2FA réussie sur Symfony (que ce soit pour une activation ou une connexion), Symfony ne redirige pas directement. Il affiche une page intermédiaire qui **soumet automatiquement un formulaire en POST** vers la page d'accueil legacy (`/Web/index.php`).

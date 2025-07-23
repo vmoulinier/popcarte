@@ -3,26 +3,11 @@
 {% block title %}LibreBooking - Authentification à deux facteurs{% endblock %}
 
 {% block stylesheets %}
-    <style>
-        .container { max-width: 600px; margin-top: 40px; }
-        .card { border: 1px solid #ddd; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .card .header { background-color: #f7f7f7; padding: 20px; border-bottom: 1px solid #ddd; }
-        .card .header .title { font-size: 24px; margin: 0; }
-        .card .header .subtitle { margin: 5px 0 0; color: #666; }
-        .card .alert { margin: 20px; }
-        .card .step { padding: 20px; }
-        .card .step-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; }
-        .card .qr-container { text-align: center; }
-        .card .form-input { width: 100%; padding: 10px; text-align: center; font-size: 18px; letter-spacing: 2px; }
-        .card .btn-group { display: flex; justify-content: space-between; padding: 20px; border-top: 1px solid #ddd; background-color: #f7f7f7; }
-        .card .btn-footer { text-align: center; padding-top: 15px; }
-        .btn-link-discreet { font-size: 14px; color: #007bff; text-decoration: none; }
-        .btn-link-discreet:hover { text-decoration: underline; }
-    </style>
+	<link rel="stylesheet" href="{{ asset('css/2fa.css') }}">
 {% endblock %}
 
 {% block body %}
-<div class="container">
+<div class="container-fluid">
     <div class="card">
         <div class="header">
             <h1 class="title">Gérer la double authentification (2FA)</h1>
@@ -41,10 +26,11 @@
             <div class="alert alert-success">
                 La double authentification est actuellement <strong>activée</strong>.
             </div>
-            <p style="padding: 0 20px;">Votre compte est protégé. Vous pouvez désactiver cette fonctionnalité si nécessaire.</p>
+            <p style="padding: 0 15px;">Votre compte est protégé. Vous pouvez désactiver cette fonctionnalité si nécessaire.</p>
             
             <form method="post" action="{{ path('app_account_2fa_disable') }}" onsubmit="return confirm('Êtes-vous sûr de vouloir désactiver la 2FA ?')">
                 <input type="hidden" name="user_id" value="{{ user_id }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('disable-2fa') }}">
                 <div class="btn-group">
                     <button type="submit" class="btn btn-danger">Désactiver la 2FA</button>
                 </div>
@@ -66,6 +52,7 @@
                 <div class="step-title"><span class="step-number">2</span> Validez le code</div>
                 <form method="post" action="{{ path('app_account_2fa_activate') }}">
                     <input type="hidden" name="user_id" value="{{ user_id }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('activate-2fa') }}">
                     <div class="mb-3">
                         <label for="code" class="form-label visually-hidden">Code de vérification</label>
                         <input type="text" id="code" name="code" class="form-input" required autofocus autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" placeholder="123456">
