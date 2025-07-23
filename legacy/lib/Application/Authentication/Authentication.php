@@ -107,7 +107,7 @@ class Authentication implements IAuthentication
           return $valid;
     }
 
-    public function Login($username, $loginContext)
+    public function Login($username, $password, $loginContext)
     {
         Log::Debug('Logging in with user: %s', $username);
 

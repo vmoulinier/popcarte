@@ -13,10 +13,11 @@ interface IWebAuthentication extends IAuthenticationPromptOptions
 
     /**
      * @param string $username
+     * @param string $password
      * @param ILoginContext $loginContext
      * @return void
      */
-    public function Login($username, $loginContext);
+    public function Login($username, $password, $loginContext);
 
     /**
      * @param UserSession $user
@@ -98,12 +99,13 @@ class WebAuthentication implements IWebAuthentication
 
     /**
      * @param string $username
+     * @param string $password
      * @param ILoginContext $loginContext
      * @return void
      */
-    public function Login($username, $loginContext)
+    public function Login($username, $password, $loginContext)
     {
-        $userSession = $this->authentication->Login($username, $loginContext);
+        $userSession = $this->authentication->Login($username, $password, $loginContext);
         $this->server->SetUserSession($userSession);
 
         if ($loginContext->GetData()->Persist) {
@@ -149,7 +151,7 @@ class WebAuthentication implements IWebAuthentication
 
             if ($valid) {
                 $loginContext->GetData()->Persist = true;
-                $this->Login($validEmail, $loginContext);
+                $this->Login($validEmail, null, $loginContext);
             }
         }
 

@@ -277,11 +277,11 @@ class LoginPresenter
         
         if ($httpCode === 204) {
             // 2FA is configured but disabled, so we can log the user in directly.
-             $loginContext = new WebLoginContext(new LoginData($this->rememberMe, $this->_page->GetRedirectUrl()));
+             $loginContext = new WebLoginContext(new LoginData($this->rememberMe));
             if ($this->authentication->Login($this->_page->GetEmailAddress(), $this->_page->GetPassword(), $loginContext)) {
-                $this->_Redirect();
                 return;
             }
+            header('Location: /Web/dashboard.php');
         }
 
         Log::Error("2FA check API call failed with unexpected status %d for user %s. Response: %s", $httpCode, $userId, $response);
@@ -337,10 +337,6 @@ class LoginPresenter
     {
         $userSession = ServiceLocator::GetServer()->GetUserSession();
         if ($userSession && $userSession->UserId) {
-            // Redirection vers le bridge Symfony pour activer la session Symfony et la 2FA
-            // This redirect is problematic if the user is just logged in.
-            // It should only redirect to the dashboard.
-            // $this->_Redirect(); should probably just go to the dashboard.
             LoginRedirector::Redirect($this->_page);
         }
     }
