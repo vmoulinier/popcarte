@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Redirection en cours...</title>
+</head>
+<body onload="document.forms[0].submit()">
+    <form action="/Web/index.php" method="post">
+        <p>Vous allez être redirigé. Si la redirection ne fonctionne pas, veuillez cliquer sur le bouton ci-dessous.</p>
+        <input type="hidden" name="login_token" value="{{ login_token }}" />
+        <input type="submit" value="Continuer">
+    </form>
+</body>
+</html> 
