@@ -9,7 +9,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
-use Doctrine\DBAL\Connection;
+use App\Repository\UserRepository;
 use Psr\Log\LoggerInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Entity\User2FA;
@@ -27,31 +27,42 @@ class Security2FAController extends AbstractController
     public function login2FA(
         Request $request,
         TotpAuthenticatorInterface $totpAuthenticator,
-        EntityManagerInterface $em
+        EntityManagerInterface $em,
+        UserRepository $userRepository
     ): Response {
-        $userId = $request->query->get('user_id', $request->request->get('user_id'));
-        if (!$userId) {
-            $this->logger->warning('[2FA Login] Page accessed without user_id.');
-            return $this->redirect('/Web/index.php');
-        }
+        // 1) Tenter de récupérer l’utilisateur depuis la session Symfony
+        $sessionUser = $this->getUser();
 
-        $connection = $em->getConnection();
-        if (!is_numeric($userId)) {
-            $this->logger->info(sprintf('[2FA Login] Received non-numeric user_id: "%s". Converting to numeric ID.', $userId));
-            $escapedIdentifier = $connection->quote($userId);
-            $sql = "SELECT user_id FROM users WHERE username = $escapedIdentifier OR email = $escapedIdentifier";
-            $stmt = $connection->prepare($sql);
-            $result = $stmt->executeQuery();
-            $userRow = $result->fetchAssociative();
-            if (!$userRow) {
-                $this->logger->error(sprintf('[2FA Login] Could not find numeric ID for identifier: "%s".', $userId));
+        if ($sessionUser) {
+            $lookupId = (int) $sessionUser->getId();
+            $userId   = (string) $lookupId;
+            $this->logger->info(sprintf('[2FA Login] Utilisateur authentifié via session Symfony, id=%d', $lookupId));
+        } else {
+            // 2) Fallback : on accepte encore le paramètre user_id pour compatibilité
+            $userId = $request->query->get('user_id', $request->request->get('user_id'));
+
+            if (!$userId) {
+                $this->logger->warning('[2FA Login] Page accessed without authenticated user or user_id param.');
+                return $this->redirect('/Web/index.php');
+            }
+
+            // Recherche via Doctrine plutôt qu'avec du SQL brut
+            if (is_numeric($userId)) {
+                $user = $userRepository->find($userId);
+            } else {
+                $user = $userRepository->findOneBy(['username' => $userId]);
+                if (!$user) {
+                    $user = $userRepository->findOneBy(['email' => $userId]);
+                }
+            }
+
+            if (!$user) {
+                $this->logger->error(sprintf('[2FA Login] Utilisateur "%s" introuvable.', $userId));
                 $this->addFlash('error', 'Utilisateur introuvable.');
                 return $this->redirect('/Web/index.php');
             }
-            $lookupId = $userRow['user_id'];
-            $this->logger->info(sprintf('[2FA Login] Converted identifier "%s" to numeric ID: "%s".', $userId, $lookupId));
-        } else {
-            $lookupId = (int)$userId;
+
+            $lookupId = $user->getId();
         }
 
         $user2fa = $em->getRepository(User2FA::class)->findOneBy(['userId' => $lookupId]);

@@ -13,6 +13,11 @@ security:
         main:
             lazy: true
             provider: legacy_user_provider
+            custom_authenticators:
+                - App\Security\LegacyAuthenticator
+            logout:
+                path: app_logout
+            entry_point: App\Security\LegacyAuthenticator
 
             # activate different ways to authenticate
             # https://symfony.com/doc/current/security.html#the-firewall
@@ -25,13 +30,11 @@ security:
     access_control:
         # The 2FA routes must be publicly accessible, as they are part of the login process itself.
         # Security is handled inside the controllers (checking for user_id, session flags, etc.).
-        - { path: ^/check-2fa-status, roles: PUBLIC_ACCESS }
-        - { path: ^/account/2fa, roles: PUBLIC_ACCESS }
+        - { path: ^/check-fa-status, roles: PUBLIC_ACCESS }
         - { path: ^/security/2fa/login, roles: PUBLIC_ACCESS }
-        - { path: ^/bridge-login, roles: PUBLIC_ACCESS }
-
+        - { path: ^/api, roles: PUBLIC_ACCESS } # SSO API is secured by shared secret
+        - { path: ^/account, roles: ROLE_USER }
         - { path: ^/Web/dashboard.php, roles: ROLE_USER }
-        - { path: ^/test-legacy, roles: ROLE_USER }
 
 when@test:
     security:

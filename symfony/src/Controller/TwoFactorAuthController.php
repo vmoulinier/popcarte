@@ -19,29 +19,39 @@ class TwoFactorAuthController extends AbstractController
         User2FARepository $user2FARepository,
         LoggerInterface $logger
     ): Response {
-        $userId = $request->query->get('user_id');
-        $logger->info("[2FA Check-Status] Received request for user_id: '{$userId}'");
+        // 1) Utilisateur authentifié via Symfony
+        $sessionUser = $this->getUser();
 
-        if (!$userId) {
-            return new Response('User ID required', Response::HTTP_BAD_REQUEST);
-        }
-
-        // If the identifier is not numeric, we convert it.
-        if (!is_numeric($userId)) {
-            $connection = $em->getConnection();
-            $escapedIdentifier = $connection->quote($userId);
-            $sql = "SELECT user_id FROM users WHERE username = $escapedIdentifier OR email = $escapedIdentifier";
-            $stmt = $connection->prepare($sql);
-            $result = $stmt->executeQuery();
-            $user = $result->fetchAssociative();
-
-            if (!$user) {
-                $logger->warning("[2FA Check-Status] Legacy user '{$userId}' not found. Considering 2FA not configured.");
-                return new Response('User not found, 2FA not configured.', Response::HTTP_NOT_FOUND);
-            }
-            $lookupId = $user['user_id'];
+        if ($sessionUser) {
+            $lookupId = (int) $sessionUser->getId();
+            $userId   = (string) $lookupId;
+            $logger->info("[2FA Check-Status] Session Symfony détectée pour user_id '{$lookupId}'.");
         } else {
-            $lookupId = $userId;
+            // 2) Fallback : paramètre user_id
+            $userId = $request->query->get('user_id');
+            $logger->info("[2FA Check-Status] Requête avec param user_id='{$userId}'");
+
+            if (!$userId) {
+                return new Response('User ID required', Response::HTTP_BAD_REQUEST);
+            }
+
+            // Conversion en ID numérique si nécessaire
+            if (!is_numeric($userId)) {
+                $connection = $em->getConnection();
+                $escapedIdentifier = $connection->quote($userId);
+                $sql = "SELECT user_id FROM users WHERE username = $escapedIdentifier OR email = $escapedIdentifier";
+                $stmt = $connection->prepare($sql);
+                $result = $stmt->executeQuery();
+                $user = $result->fetchAssociative();
+
+                if (!$user) {
+                    $logger->warning("[2FA Check-Status] Legacy user '{$userId}' not found. Considering 2FA not configured.");
+                    return new Response('User not found, 2FA not configured.', Response::HTTP_NOT_FOUND);
+                }
+                $lookupId = $user['user_id'];
+            } else {
+                $lookupId = $userId;
+            }
         }
 
         $user2fa = $user2FARepository->findOneBy(['userId' => $lookupId]);

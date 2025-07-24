@@ -323,6 +323,4 @@ $conf['settings']['api']['Schedules.ro.group'] = '';
 $config['php.in_production'] = '0';
 $config['php.display_errors'] = '1';
 
-$config['encryption.key'] = 'dEC1UTVaoc58Qj8w5GV2rlkQUdScPFsa';
-
 $conf['appSettings'] = $config;

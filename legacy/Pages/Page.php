@@ -8,7 +8,6 @@ if (file_exists(ROOT_DIR . 'vendor/autoload.php')) {
 require_once(ROOT_DIR . 'Pages/IPage.php');
 require_once(ROOT_DIR . 'Pages/Pages.php');
 require_once(ROOT_DIR . 'lib/Common/namespace.php');
-require_once(ROOT_DIR . 'lib/Common/Encryption.php');
 require_once(ROOT_DIR . 'lib/Server/namespace.php');
 require_once(ROOT_DIR . 'lib/Config/namespace.php');
 

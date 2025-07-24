@@ -147,11 +147,8 @@
                                     <li id="navPassword"><a class="dropdown-item"
                                             href="{$Path}{Pages::PASSWORD}">{translate key="ChangePassword"}</a></li>
                                     <li id="nav2fa">
-                                        <form action="/symfony/account/2fa" method="post" style="margin:0;">
-                                            <input type="hidden" name="user_id" value="{Encryption::encrypt($UserName)}">
-                                            <button type="submit" class="dropdown-item" style="border:none; background:none; cursor:pointer; width:100%; text-align:left; padding: .25rem 1rem;">{translate key="Manage2FA"}</button>
-                                        </form>
-                                     </li>
+                                        <a href="/symfony/account/2fa" class="dropdown-item">{translate key="Manage2FA"}</a>
+                                    </li>
                                     <li id="navNotification">
                                         <a class="dropdown-item"
                                             href="{$Path}{Pages::NOTIFICATION_PREFERENCES}">{translate key="NotificationPreferences"}</a>

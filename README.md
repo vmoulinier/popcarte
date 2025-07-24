@@ -29,7 +29,7 @@ Ce projet implémente un système d'authentification à deux facteurs (2FA) pour
 ## 🌐 URLs d'accès (après installation)
 
 -   **Application Legacy**: http://localhost:8080/Web/index.php
--   **Gestion 2FA**: http://localhost:8080/symfony/account/2fa?user_id=[username]
+-   **Gestion 2FA**: http://localhost:8080/symfony/account/2fa
 -   **Base de données (PhpMyAdmin)**: http://localhost:8081
 
 ### Identifiants de connexion
@@ -46,12 +46,14 @@ Le processus de connexion est orchestré entre l'application legacy et la nouvel
 ### Étape 1 : Connexion Legacy
 L'utilisateur se connecte avec son nom d'utilisateur et son mot de passe sur l'interface legacy.
 
-### Étape 2 : Vérification du statut 2FA dans le Legacy
-Si les identifiants sont valides, le `LoginPresenter` de l'application legacy vérifie directement dans la base de données si la 2FA est activée pour cet utilisateur.
+### Étape 2 : Création de la session Symfony via SSO  
+Une fois les identifiants vérifiés, le `LoginPresenter` appelle l'endpoint Symfony `/symfony/api/internal/sso/login` à l'aide d'une requête POST sécurisée (en-tête `X-SSO-TOKEN`).  
+Symfony authentifie l'utilisateur, crée la session et renvoie un en-tête `Set-Cookie` contenant le cookie de session.  
+Le legacy relaie immédiatement cet en-tête au navigateur, ce qui permet au client de disposer de la session Symfony pour les requêtes suivantes.
 
 ### Étape 3 : Scénarios de redirection
--   **2FA non configurée ou désactivée** : L'utilisateur est redirigé vers la page d'activation/gestion de la 2FA sur Symfony (`/symfony/account/2fa?user_id=[username]`) où il peut scanner un QR code et valider un premier code TOTP.
--   **2FA déjà activée** : L'utilisateur est redirigé vers la page de validation de Symfony (`/symfony/security/2fa/login?user_id=[username]`) où il doit entrer le code TOTP actuel de son application d'authentification.
+-   **2FA non configurée ou désactivée** : L'utilisateur est connecté immédiatement au legacy. Il pourra ensuite activer la 2FA depuis le menu « Mon Compte » (lien `/symfony/account/2fa`).
+-   **2FA déjà activée** : L'utilisateur est redirigé vers la page de validation de Symfony (`/symfony/security/2fa/login`) où il doit entrer le code TOTP actuel de son application d'authentification.
 
 > **Note :** Une fois connecté, l'utilisateur peut à tout moment gérer ses paramètres de double authentification (activer ou désactiver) en se rendant dans le menu "Mon Compte" → "Gérer ma 2FA".
 
@@ -77,6 +79,8 @@ Ce mécanisme de jeton POST assure une transition sécurisée et fiable entre le
 -   `symfony/src/Controller/`:
     -   `Account2FAController.php`: Gère la page d'activation (QR code) et de désactivation de la 2FA. Génère le jeton après activation.
     -   `Security2FAController.php`: Gère la page de validation du code TOTP pour les connexions. Génère le jeton après validation.
+    -   `TwoFactorAuthController.php`: API interne pour connaître l'état 2FA d'un utilisateur.
+    -   `SsoController.php`: Point d'entrée SSO (login/logout) appelé depuis le legacy pour créer ou détruire la session Symfony.
 -   `symfony/src/Entity/User2FA.php`:
     -   Entité Doctrine pour la table `user2_fa`, contient les champs pour le secret 2FA et le jeton de connexion temporaire.
 -   `symfony/templates/security/auto_post_redirect.html.twig`:
@@ -103,6 +107,7 @@ popcarte/
 │   ├── src/Controller/        # Contrôleurs 2FA
 │   │   ├── Account2FAController.php    # Activation/désactivation 2FA
 │   │   ├── Security2FAController.php   # Validation 2FA à la connexion
+│   │   ├── TwoFactorAuthController.php # Vérification d'état 2FA
 │   ├── src/Entity/           # Entités Doctrine
 │   └── templates/            # Interface 2FA
 │       ├── account/2fa.html.twig       # Page d'activation
@@ -132,9 +137,9 @@ docker-compose exec db mysql -u librebooking -p librebooking
 
 ### Test 1 : Utilisateur sans 2FA
 1. Se connecter avec un utilisateur sans 2FA.
-2. L'application fonctionne normalement. L'utilisateur peut se rendre sur la page de gestion 2FA via le menu "Mon Compte" pour l'activer.
-3. Activer la 2FA en scannant le QR code et en validant avec un code TOTP.
-4. Être redirigé vers le tableau de bord, maintenant connecté.
+2. L'utilisateur est connecté directement au legacy.
+3. Depuis le menu "Mon Compte", cliquer sur "Gérer ma 2FA" pour accéder à `/symfony/account/2fa`.
+4. Activer la 2FA en scannant le QR code et en validant avec un code TOTP. Un jeton est généré puis l'utilisateur est automatiquement reconnecté.
 
 ### Test 2 : Utilisateur avec 2FA activée
 1. Se connecter avec un utilisateur ayant déjà la 2FA activée.

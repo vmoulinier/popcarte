@@ -2,61 +2,78 @@
 
 namespace App\Security;
 
+use App\Entity\User;
+use App\Repository\UserRepository;
+use Symfony\Component\Security\Core\Exception\UserNotFoundException;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Security\Core\User\UserProviderInterface;
-use Symfony\Component\Security\Core\Exception\UnsupportedUserException;
-use Symfony\Component\Security\Core\Exception\UserNotFoundException;
-use App\Repository\User2FARepository;
-use App\Service\LegacyUserService;
+use Doctrine\ORM\EntityManagerInterface;
 
 class LegacyUserProvider implements UserProviderInterface
 {
-    private User2FARepository $user2FARepository;
-    private LegacyUserService $legacyUserService;
+    private $userRepository;
 
-    public function __construct(User2FARepository $user2FARepository, LegacyUserService $legacyUserService)
+    public function __construct(UserRepository $userRepository)
     {
-        $this->user2FARepository = $user2FARepository;
-        $this->legacyUserService = $legacyUserService;
+        $this->userRepository = $userRepository;
     }
 
+    /**
+     * Symfony calls this method if you use features like switch_user
+     * or remember_me. If you don't need these features, you can throw
+     * an exception.
+     *
+     * @throws UserNotFoundException if the user is not found
+     */
     public function loadUserByIdentifier(string $identifier): UserInterface
     {
-        // Récupérer les vraies données de l'utilisateur legacy
-        $legacyUserData = $this->legacyUserService->getLegacyUser($identifier);
+        $user = $this->userRepository->findOneBy(['email' => $identifier]);
+
+        if (!$user) {
+            $user = $this->userRepository->findOneBy(['username' => $identifier]);
+        }
         
-        if (!$legacyUserData) {
-            throw new UserNotFoundException("Utilisateur '$identifier' non trouvé dans le legacy.");
+        if (!$user) {
+             $user = $this->userRepository->find($identifier); // Fallback to ID
         }
 
-        $userId = $legacyUserData['user_id'];
-        $username = $legacyUserData['username'];
-        $email = $legacyUserData['email'];
-        $roles = ['ROLE_USER'];
-        
-        $legacyUser = new LegacyUser($userId, $username, $email, $roles);
-
-        // Récupérer la config 2FA depuis User2FA
-        $user2fa = $this->user2FARepository->findOneBy(['userId' => $userId]);
-        if ($user2fa) {
-            $legacyUser->setTwoFactorSecret($user2fa->getSecret());
-            $legacyUser->setTwoFactorEnabled($user2fa->isEnabled());
+        if (!$user) {
+            throw new UserNotFoundException(sprintf('User with identifier "%s" not found.', $identifier));
         }
 
-        return $legacyUser;
+        return $user;
     }
 
+    /**
+     * Refreshes the user after being reloaded from the session.
+     *
+     * When a user is logged in, at the beginning of each request, the
+     * User object is loaded from the session and then this method is
+     * called. Your job is to make sure the user's data is still fresh by,
+     * for example, re-querying for fresh user data.
+     */
     public function refreshUser(UserInterface $user): UserInterface
     {
-        if (!$user instanceof LegacyUser) {
-            throw new UnsupportedUserException();
+        if (!$user instanceof User) {
+            throw new \Symfony\Component\Security\Core\Exception\UnsupportedUserException(sprintf('Invalid user class "%s".', get_class($user)));
         }
-        // Recharger l'utilisateur depuis le legacy
-        return $this->loadUserByIdentifier($user->getUserIdentifier());
+
+        // Return a User object after making sure its data is fresh.
+        // Or throw a UserNotFoundException if the user no longer exists.
+        $reloadedUser = $this->userRepository->find($user->getId());
+
+        if (null === $reloadedUser) {
+            throw new UserNotFoundException(sprintf('User with id "%s" not found', $user->getId()));
+        }
+
+        return $reloadedUser;
     }
 
+    /**
+     * Tells Symfony to use this provider for this User class.
+     */
     public function supportsClass(string $class): bool
     {
-        return $class === LegacyUser::class;
+        return User::class === $class || is_subclass_of($class, User::class);
     }
 } 

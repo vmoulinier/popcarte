@@ -21,9 +21,9 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
-    App\Service\EncryptionService:
+    App\Controller\SsoController:
         arguments:
-            $legacyEncryptionKey: '%legacy_encryption_key%'
+            $ssoSharedSecret: '%env(SSO_SHARED_SECRET)%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

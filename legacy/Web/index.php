@@ -1,22 +1,28 @@
 <?php
+// Harmonisation de la session avec Symfony
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('PHPSESSID');
+    session_set_cookie_params(['path' => '/']);
+}
+// Fin de l'harmonisation
 
 define('ROOT_DIR', '../');
-
-if (!file_exists(ROOT_DIR . 'config/config.php')) {
-    die('Missing config/config.php. Please refer to the installation instructions.');
-}
-
+require_once(ROOT_DIR . 'lib/Config/namespace.php');
+require_once(ROOT_DIR . 'lib/Common/namespace.php');
 require_once(ROOT_DIR . 'Pages/LoginPage.php');
 require_once(ROOT_DIR . 'Presenters/LoginPresenter.php');
 
 $page = new LoginPage();
 
-if ($page->LoggingIn() || (isset($_POST['login_token']) && !empty($_POST['login_token']))) {
-    $page->Login();
+if ($page->LoggingIn())
+{
+	$page->Login();
 }
-
-if ($page->ChangingLanguage()) {
-    $page->ChangeLanguage();
+else if ($page->ChangingLanguage())
+{
+	$page->ChangeLanguage();
 }
-
-$page->PageLoad();
+else
+{
+	$page->PageLoad();
+}

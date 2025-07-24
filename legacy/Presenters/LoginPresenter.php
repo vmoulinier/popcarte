@@ -240,12 +240,18 @@ class LoginPresenter
      */
     private function checkTwoFactorAuth($userId)
     {
-        $symfonyUrl = 'http://apache:80/symfony/check-2fa-status?user_id=' . urlencode($userId);
+        $ssoSharedSecret = "CHANGE_ME_IN_PRODUCTION_a_super_secret_key_12345"; // Doit correspondre au .env de Symfony
+        $symfonyUrl = 'http://apache:80/symfony/api/internal/sso/login';
+
+        $postData = http_build_query(['user_id' => $userId]);
 
         $context = stream_context_create([
             'http' => [
-                'method' => 'GET',
-                'header' => 'Content-Type: application/json',
+                'method' => 'POST',
+                'header' => "Content-Type: application/x-www-form-urlencoded\r\n" .
+                            "X-SSO-TOKEN: " . $ssoSharedSecret . "\r\n" .
+                            "Content-Length: " . strlen($postData) . "\r\n",
+                'content' => $postData,
                 'timeout' => 5,
                 'ignore_errors' => true
             ]
@@ -253,40 +259,53 @@ class LoginPresenter
 
         $response = @file_get_contents($symfonyUrl, false, $context);
 
-        if ($response === false) {
-            Log::Error("2FA Check: API call failed completely. Check network or Symfony API logs.");
-            $this->_page->SetShowLoginError();
-            exit;
-        }
-
-        $httpCode = 0;
-        if (isset($http_response_header[0])) {
-           preg_match('{HTTP/1\.\d\s(\d{3})}', $http_response_header[0], $matches);
-           $httpCode = (int)$matches[1];
-        }
-
-        if ($httpCode === 404) {
-            header('Location: http://localhost:8080/symfony/account/2fa?user_id=' . urlencode($userId));
-            exit;
-        }
-
-        if ($httpCode === 200) {
-            header('Location: http://localhost:8080/symfony/security/2fa/login?user_id=' . urlencode($userId));
-            exit;
-        }
-        
-        if ($httpCode === 204) {
-            // 2FA is configured but disabled, so we can log the user in directly.
-             $loginContext = new WebLoginContext(new LoginData($this->rememberMe));
-            if ($this->authentication->Login($this->_page->GetEmailAddress(), $this->_page->GetPassword(), $loginContext)) {
-                return;
+        // --- PROPAGATION DU COOKIE DE SESSION SYMFONY ---
+        // L’appel ci-dessus est exécuté côté serveur ; nous devons relayer les en-têtes
+        // "Set-Cookie" reçus afin que le navigateur de l’utilisateur les reçoive et
+        // qu’il puisse ensuite accéder à sa session Symfony.
+        if (isset($http_response_header) && is_array($http_response_header)) {
+            foreach ($http_response_header as $hdr) {
+                if (stripos($hdr, 'Set-Cookie:') === 0) {
+                    // false pour empiler les éventuels multiples cookies.
+                    header($hdr, false);
+                }
             }
-            header('Location: /Web/dashboard.php');
+        }
+        // --- FIN PROPAGATION COOKIE ---
+
+        // Détermination de la cible en fonction du statut 2FA
+        $db = ServiceLocator::GetDatabase();
+
+        // On convertit l'identifiant en ID numérique si besoin
+        if (is_numeric($userId)) {
+            $lookupId = intval($userId);
+        } else {
+            $safeIdentifier = $db->Connection->EscapeString($userId);
+            $result = $db->Query(new AdHocCommand("SELECT user_id FROM users WHERE username = '" . $safeIdentifier . "' OR email = '" . $safeIdentifier . "'"));
+            $rowConv = $result->GetRow();
+            $lookupId = $rowConv ? intval($rowConv['user_id']) : 0;
         }
 
-        Log::Error("2FA check API call failed with unexpected status %d for user %s. Response: %s", $httpCode, $userId, $response);
-        $this->_page->SetShowLoginError();
-        exit;
+        $statusResult = $db->Query(new AdHocCommand("SELECT enabled FROM user2_fa WHERE user_id = " . $lookupId));
+        $row = $statusResult->GetRow();
+        $has2FAEnabled = $row && intval($row['enabled']) === 1;
+
+        if ($has2FAEnabled) {
+            // Redirige vers la vérification de code 2FA sur Symfony
+            header('Location: /symfony/security/2fa/login?user_id=' . urlencode($userId));
+            exit;
+        }
+
+        // Si la 2FA n’est pas activée, on connecte immédiatement l’utilisateur côté legacy
+        $loginContext = new WebLoginContext(new LoginData($this->rememberMe));
+        if ($this->authentication->Login($this->_page->GetEmailAddress(), $this->_page->GetPassword(), $loginContext)) {
+            return true; // La méthode Login() se chargera d’effectuer la redirection finale
+        }
+
+        // En cas d’échec, on retombe sur le flux standard d’erreur
+        $this->_Redirect();
+
+        return false;
     }
 
     /**
@@ -324,12 +343,32 @@ class LoginPresenter
 
     public function Logout()
     {
+        $userSession = ServiceLocator::GetServer()->GetUserSession();
+        $userId = $userSession->UserId;
+        $ssoSharedSecret = "CHANGE_ME_IN_PRODUCTION_a_super_secret_key_12345"; // Doit correspondre au .env de Symfony
+
+        // SSO Logout: Notifier Symfony pour détruire sa session
+        $symfonyUrl = 'http://apache:80/symfony/api/internal/sso/logout';
+        $postData = http_build_query(['user_id' => $userId]);
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => "Content-Type: application/x-www-form-urlencoded\r\n" .
+                            "X-SSO-TOKEN: " . $ssoSharedSecret . "\r\n",
+                'content' => $postData,
+                'timeout' => 3,
+                'ignore_errors' => true
+            ]
+        ]);
+        @file_get_contents($symfonyUrl, false, $context);
+        // On ne vérifie pas la réponse, la déconnexion legacy doit se poursuivre quoi qu'il arrive
+
         $url = Configuration::Instance()->GetKey(ConfigKeys::LOGOUT_URL);
         if (empty($url)) {
             $url = htmlspecialchars_decode($this->_page->GetResumeUrl() ?? '');
             $url = sprintf('%s?%s=%s', Pages::LOGIN, QueryStringKeys::REDIRECT, urlencode($url));
         }
-        $this->authentication->Logout(ServiceLocator::GetServer()->GetUserSession());
+        $this->authentication->Logout($userSession);
         $this->_page->Redirect($url);
     }
 

@@ -15,7 +15,6 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
-use App\Service\EncryptionService;
 
 #[Route('/account/2fa')]
 class Account2FAController extends AbstractController
@@ -27,48 +26,21 @@ class Account2FAController extends AbstractController
         $this->logger = $logger;
     }
 
-    #[Route('', name: 'app_account_2fa', methods: ['GET', 'POST'])]
+    #[Route('', name: 'app_account_2fa', methods: ['GET'])]
     public function index(
-        Request $request,
         EntityManagerInterface $em,
         TotpAuthenticatorInterface $totpAuthenticator,
-        User2FARepository $user2FARepository,
-        EncryptionService $encryptionService
+        User2FARepository $user2FARepository
     ): Response {
-        $encryptedUserId = $request->isMethod('POST')
-            ? $request->request->get('user_id')
-            : $request->query->get('user_id');
+        $user = $this->getUser();
 
-        $userId = $encryptionService->decrypt($encryptedUserId);
-            
-        $this->logger->info("[2FA Index] Received request for user_id: '{$userId}'");
-
-        if (!$userId) {
-            $this->logger->warning('[2FA Index] No user_id provided, redirecting to legacy login.');
+        if (!$user) {
+            $this->logger->warning('[2FA Index] No authenticated user found, redirecting to legacy login.');
             return $this->redirect('/Web/index.php');
         }
 
-        // If the identifier is not numeric, we convert it.
-        if (!is_numeric($userId)) {
-            $connection = $em->getConnection();
-            $escapedIdentifier = $connection->quote($userId);
-            $sql = "SELECT user_id FROM users WHERE username = $escapedIdentifier OR email = $escapedIdentifier";
-            $stmt = $connection->prepare($sql);
-            $result = $stmt->executeQuery();
-            $user = $result->fetchAssociative();
-
-            if (!$user) {
-                $this->logger->error("[2FA Index] Legacy user '{$userId}' not found in DB.");
-                $this->addFlash('error', "Utilisateur legacy '$userId' non trouvé.");
-                return $this->redirect('/Web/index.php');
-            }
-
-            $lookupId = $user['user_id'];
-            $this->logger->info("[2FA Index] Converted user_id '{$userId}' to numeric id: '{$lookupId}'");
-        } else {
-            $lookupId = $userId;
-            $this->logger->info("[2FA Index] Received numeric user_id: '{$lookupId}'");
-        }
+        $lookupId = $user->getId();
+        $this->logger->info("[2FA Index] Managing 2FA for authenticated user_id: '{$lookupId}'");
 
         $user2fa = $user2FARepository->findOneBy(['userId' => $lookupId]);
 
@@ -106,7 +78,7 @@ class Account2FAController extends AbstractController
 
         return $this->render('account/2fa.html.twig', [
             'qr_code' => $qrCodeDataUri,
-            'user_id' => $userId, // Pass original identifier back to the form
+            'user_id' => $lookupId, // Pass ID to the form for activate/disable
             'user2fa' => $user2fa,
             'secret' => $user2fa->getSecret(),
             'is_enabled' => $user2fa->isEnabled(),
@@ -181,26 +153,13 @@ class Account2FAController extends AbstractController
         Request $request,
         EntityManagerInterface $em
     ): Response {
-        $userId = $request->request->get('user_id');
-        $this->logger->info("[2FA Disable] Received disable request for user_id: '{$userId}'");
-
-        if (!is_numeric($userId)) {
-            $connection = $em->getConnection();
-            $escapedIdentifier = $connection->quote($userId);
-            $sql = "SELECT user_id FROM users WHERE username = $escapedIdentifier OR email = $escapedIdentifier";
-            $stmt = $connection->prepare($sql);
-            $result = $stmt->executeQuery();
-            $user = $result->fetchAssociative();
-
-            if (!$user) {
-                $this->logger->error("[2FA Disable] Legacy user '{$userId}' not found.");
-                $this->addFlash('error', "Utilisateur legacy '$userId' non trouvé.");
-                return $this->redirect('/Web/index.php');
-            }
-            $lookupId = $user['user_id'];
-        } else {
-            $lookupId = $userId;
+        $user = $this->getUser();
+        if (!$user) {
+            return $this->redirect('/Web/index.php');
         }
+        $lookupId = $user->getId();
+
+        $this->logger->info("[2FA Disable] Received disable request for user_id: '{$lookupId}'");
 
         $user2fa = $em->getRepository(User2FA::class)->findOneBy(['userId' => $lookupId]);
 
@@ -215,6 +174,6 @@ class Account2FAController extends AbstractController
             $this->addFlash('warning', '2FA non trouvé pour cet utilisateur.');
         }
 
-        return $this->redirectToRoute('app_account_2fa', ['user_id' => $userId]);
+        return $this->redirectToRoute('app_account_2fa');
     }
 }

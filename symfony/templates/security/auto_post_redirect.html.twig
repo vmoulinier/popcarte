@@ -1,13 +1,50 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <title>Redirection en cours...</title>
+    <meta charset="utf-8">
+    <title>Connexion en cours...</title>
+    <style>
+        body {margin:0;display:flex;align-items:center;justify-content:center;height:100vh;font-family:Arial,Helvetica,sans-serif;background:#f8f9fa;color:#666;}
+        .spinner{width:40px;height:40px;border:4px solid #e0e0e0;border-top:4px solid #3f8cff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1rem;}
+        @keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+    </style>
 </head>
-<body onload="document.forms[0].submit()">
-    <form action="/Web/index.php" method="post">
-        <p>Vous allez être redirigé. Si la redirection ne fonctionne pas, veuillez cliquer sur le bouton ci-dessous.</p>
-        <input type="hidden" name="login_token" value="{{ login_token }}" />
-        <input type="submit" value="Continuer">
-    </form>
+<body>
+    <div>
+        <div class="spinner"></div>
+        <p style="text-align:center">Connexion sécurisée...</p>
+        <noscript>
+            <form action="/Web/index.php" method="post">
+                <input type="hidden" name="login_token" value="{{ login_token }}">
+                <input type="hidden" name="login" value="1">
+                <button type="submit">Continuer</button>
+            </form>
+        </noscript>
+    </div>
+
+    <script>
+        // Soumission automatique, plus rapide et éviter le flash d'un formulaire
+        (function(){
+            const form = document.createElement('form');
+            form.method = 'post';
+            form.action = '/Web/index.php';
+            form.style.display = 'none';
+
+            const token = document.createElement('input');
+            token.type = 'hidden';
+            token.name = 'login_token';
+            token.value = '{{ login_token }}';
+            form.appendChild(token);
+
+            const login = document.createElement('input');
+            login.type = 'hidden';
+            login.name = 'login';
+            login.value = '1';
+            form.appendChild(login);
+
+            document.body.appendChild(form);
+            form.submit();
+        })();
+    </script>
 </body>
 </html> 
