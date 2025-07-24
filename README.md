@@ -107,6 +107,7 @@ popcarte/
 │   ├── src/Controller/        # Contrôleurs 2FA
 │   │   ├── Account2FAController.php    # Activation/désactivation 2FA
 │   │   ├── Security2FAController.php   # Validation 2FA à la connexion
+│   │   ├── SsoController.php # Login/Logout Legacy <-> Symfony
 │   │   ├── TwoFactorAuthController.php # Vérification d'état 2FA
 │   ├── src/Entity/           # Entités Doctrine
 │   └── templates/            # Interface 2FA
