@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\User2FA;
 use App\Repository\User2FARepository;
+use App\Service\TwoFactorRateLimiter;
 use Doctrine\ORM\EntityManagerInterface;
 use Endroid\QrCode\Encoding\Encoding;
 use Endroid\QrCode\ErrorCorrectionLevel\ErrorCorrectionLevel;
@@ -20,10 +21,12 @@ use Symfony\Component\Routing\Annotation\Route;
 class Account2FAController extends AbstractController
 {
     private LoggerInterface $logger;
+    private TwoFactorRateLimiter $rateLimiter;
 
-    public function __construct(LoggerInterface $logger)
+    public function __construct(LoggerInterface $logger, TwoFactorRateLimiter $rateLimiter)
     {
         $this->logger = $logger;
+        $this->rateLimiter = $rateLimiter;
     }
 
     #[Route('', name: 'app_account_2fa', methods: ['GET'])]
@@ -129,8 +132,22 @@ class Account2FAController extends AbstractController
 
         $this->logger->info('[2FA Activate] Found User2FA record. Validating code.');
 
+        // Vérifier le rate limiting avant de valider le code
+        if (!$this->rateLimiter->canAttempt($lookupId, $request)) {
+            $retryAfter = $this->rateLimiter->getRetryAfter($lookupId, $request);
+            $minutes = ceil($retryAfter / 60);
+            
+            $this->logger->warning(sprintf('[2FA Activate] Rate limit exceeded for user_id: %s. Retry after %d minutes.', $lookupId, $minutes));
+            $this->addFlash('error', sprintf('Trop de tentatives échouées. Veuillez réessayer dans %d minutes.', $minutes));
+            
+            return $this->redirectToRoute('app_account_2fa', ['user_id' => $userId]);
+        }
+
         if ($totpAuthenticator->checkCode($user2fa, $code)) {
             $this->logger->info(sprintf('[2FA Activate] Code is valid for userId \'%s\'. Activating and generating token.', $lookupId));
+            
+            // Enregistrer le succès et reset le rate limiter
+            $this->rateLimiter->recordSuccess($lookupId, $request);
 
             $user2fa->setEnabled(true);
             $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
@@ -144,7 +161,19 @@ class Account2FAController extends AbstractController
         }
 
         $this->logger->warning(sprintf('[2FA Activate] Invalid code provided for userId \'%s\'.', $lookupId));
-        $this->addFlash('error', 'Le code de vérification est incorrect. Veuillez réessayer.');
+        
+        // Obtenir le nombre de tentatives restantes
+        $attempts = $this->rateLimiter->getRemainingAttempts($lookupId, $request);
+        $remaining = min($attempts['user_remaining'], $attempts['ip_remaining']);
+        
+        if ($remaining <= 0) {
+            $retryAfter = $this->rateLimiter->getRetryAfter($lookupId, $request);
+            $minutes = ceil($retryAfter / 60);
+            $this->addFlash('error', sprintf('Trop de tentatives échouées. Veuillez réessayer dans %d minutes.', $minutes));
+        } else {
+            $this->addFlash('error', sprintf('Le code de vérification est incorrect. Il vous reste %d tentative(s).', $remaining));
+        }
+        
         return $this->redirectToRoute('app_account_2fa', ['user_id' => $userId]);
     }
 

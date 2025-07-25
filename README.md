@@ -227,9 +227,25 @@ Exécutez `./run_tests.sh` pour voir tous les résultats.
 1. Se connecter avec un utilisateur ayant la 2FA activée.
 2. Aller sur la page de gestion (`/symfony/account/2fa?user_id=[username]`) via le menu "Mon Compte".
 3. Cliquer sur "Désactiver la 2FA".
-4. La 2FA est maintenant désactivée. Lors de la prochaine connexion, l'utilisateur n'aura plus besoin de code. 
+4. La 2FA est maintenant désactivée. Lors de la prochaine connexion, l'utilisateur n'aura plus besoin de code.
+
+### Test 5 : Rate Limiting
+1. Se connecter avec un utilisateur ayant la 2FA activée.
+2. Sur la page de validation 2FA, entrer 6 codes incorrects consécutifs.
+3. Le système bloque temporairement l'accès avec le message "Trop de tentatives échouées".
+4. Attendre 1 minute ou se reconnecter avec un code correct pour débloquer. 
 
 ## 🔒 Sécurité
+
+### Rate Limiting 2FA
+Le système inclut un **rate limiting intelligent** pour protéger contre les attaques par force brute :
+
+- **Limite par utilisateur** : 5 tentatives échouées par 1 minute
+- **Limite par IP** : 10 tentatives échouées par 1 minute
+- **Reset automatique** : Le compteur se remet à zéro après une tentative réussie
+- **Messages informatifs** : L'utilisateur voit le nombre de tentatives restantes
+
+Le rate limiting utilise le **composant natif Symfony Rate Limiter** avec une politique de fenêtre fixe pour une performance optimale.
 
 ### Variables d'environnement
 ⚠️ **IMPORTANT** : Modifiez les valeurs par défaut dans `legacy/.env` pour la production :

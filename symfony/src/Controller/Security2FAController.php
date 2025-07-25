@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Repository\User2FARepository;
 use App\Service\LegacySessionManager;
+use App\Service\TwoFactorRateLimiter;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Totp\TotpAuthenticatorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -17,10 +18,12 @@ use App\Entity\User2FA;
 class Security2FAController extends AbstractController
 {
     private $logger;
+    private $rateLimiter;
 
-    public function __construct(LoggerInterface $logger)
+    public function __construct(LoggerInterface $logger, TwoFactorRateLimiter $rateLimiter)
     {
         $this->logger = $logger;
+        $this->rateLimiter = $rateLimiter;
     }
 
     #[Route('/security/2fa/login', name: 'app_security_2fa_login')]
@@ -75,8 +78,27 @@ class Security2FAController extends AbstractController
 
         if ($request->isMethod('POST')) {
             $code = $request->request->get('code');
+            
+            // Vérifier le rate limiting avant de valider le code
+            if (!$this->rateLimiter->canAttempt($lookupId, $request)) {
+                $retryAfter = $this->rateLimiter->getRetryAfter($lookupId, $request);
+                $minutes = ceil($retryAfter / 60);
+                
+                $this->logger->warning(sprintf('[2FA Login] Rate limit exceeded for user_id: %s. Retry after %d minutes.', $lookupId, $minutes));
+                $this->addFlash('error', sprintf('Trop de tentatives échouées. Veuillez réessayer dans %d minutes.', $minutes));
+                
+                return $this->render('security/2fa_login.html.twig', [
+                    'user_id' => $userId,
+                    'rate_limited' => true,
+                    'retry_after_minutes' => $minutes,
+                ]);
+            }
+            
             if ($totpAuthenticator->checkCode($user2fa, $code)) {
                 $this->logger->info(sprintf('[2FA Login] Code is valid for userId \'%s\'. Generating token.', $lookupId));
+                
+                // Enregistrer le succès et reset le rate limiter
+                $this->rateLimiter->recordSuccess($lookupId, $request);
 
                 $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
                 $user2fa->setTempLoginSecret($token);
@@ -88,7 +110,18 @@ class Security2FAController extends AbstractController
                 ]);
             } else {
                 $this->logger->warning(sprintf('[2FA Login] Invalid 2FA code for user_id: %s.', $lookupId));
-                $this->addFlash('error', 'Code invalide. Veuillez réessayer.');
+                
+                // Obtenir le nombre de tentatives restantes
+                $attempts = $this->rateLimiter->getRemainingAttempts($lookupId, $request);
+                $remaining = min($attempts['user_remaining'], $attempts['ip_remaining']);
+                
+                if ($remaining <= 0) {
+                    $retryAfter = $this->rateLimiter->getRetryAfter($lookupId, $request);
+                    $minutes = ceil($retryAfter / 60);
+                    $this->addFlash('error', sprintf('Trop de tentatives échouées. Veuillez réessayer dans %d minutes.', $minutes));
+                } else {
+                    $this->addFlash('error', sprintf('Code invalide. Il vous reste %d tentative(s).', $remaining));
+                }
             }
         }
 

@@ -30,6 +30,10 @@ if docker-compose exec apache test -f /var/www/symfony/vendor/bin/phpunit; then
     docker-compose exec apache php /var/www/symfony/vendor/bin/phpunit /var/www/symfony/tests/Integration/TwoFactorAuthIntegrationTest.php 2>/dev/null | grep -E "(OK|FAILURES|ERRORS|Tests:|Time:|Memory:)"
     
     echo ""
+    echo "Exécution des tests de rate limiting..."
+    docker-compose exec apache php /var/www/symfony/vendor/bin/phpunit /var/www/symfony/tests/Service/TwoFactorRateLimiterTest.php 2>/dev/null | grep -E "(OK|FAILURES|ERRORS|Tests:|Time:|Memory:)"
+    
+    echo ""
     echo "Exécution des tests unitaires..."
     docker-compose exec apache php /var/www/symfony/vendor/bin/phpunit /var/www/symfony/tests/Service/ 2>/dev/null | grep -E "(OK|FAILURES|ERRORS|Tests:|Time:|Memory:)"
     
@@ -85,4 +89,5 @@ echo ""
 echo "📝 Pour plus de détails sur les tests, consultez:"
 echo "   - tests/functional_test.php"
 echo "   - symfony/tests/Integration/TwoFactorAuthIntegrationTest.php"
+echo "   - symfony/tests/Service/TwoFactorRateLimiterTest.php"
 echo "" 
