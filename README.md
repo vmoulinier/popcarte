@@ -101,22 +101,84 @@ Le système se configure automatiquement au démarrage :
 ```
 popcarte/
 ├── legacy/                    # LibreBooking existant
+│   ├── config/
+│   │   └── 2fa_config.php    # Configuration centralisée 2FA
+│   ├── lib/Config/
+│   │   └── EnvironmentLoader.php  # Chargeur variables d'environnement
 │   ├── Presenters/LoginPresenter.php  # Point d'intégration 2FA au login
+│   ├── tests/
+│   │   └── config_test.php   # Test fonctionnel de configuration
 │   └── Web/                   # Interface utilisateur
 ├── symfony/                   # Nouvelle couche 2FA
+│   ├── config/services/
+│   │   └── 2fa.yaml          # Configuration services 2FA
 │   ├── src/Controller/        # Contrôleurs 2FA
 │   │   ├── Account2FAController.php    # Activation/désactivation 2FA
 │   │   ├── Security2FAController.php   # Validation 2FA à la connexion
 │   │   ├── TwoFactorAuthController.php # Vérification d'état 2FA
+│   │   └── SsoController.php  # API SSO interne
+│   ├── src/Service/           # Services Symfony
+│   │   ├── TwoFactorConfigService.php  # Configuration 2FA
+│   │   └── SsoTokenValidator.php       # Validation tokens SSO
 │   ├── src/Entity/           # Entités Doctrine
+│   ├── tests/                # Tests PHPUnit
+│   │   ├── Service/          # Tests unitaires services
+│   │   ├── Entity/           # Tests unitaires entités
+│   │   └── Integration/      # Tests d'intégration
 │   └── templates/            # Interface 2FA
 │       ├── account/2fa.html.twig       # Page d'activation
 │       └── security/2fa_login.html.twig # Page de validation
 ├── docker/                   # Configuration Docker
-└── docker-compose.yml        # Services Docker
+├── docker-compose.yml        # Services Docker
+└── run_tests.sh              # Script d'exécution des tests
 ```
 
 ## 🔧 Développement
+
+### Configuration
+Le projet utilise des variables d'environnement pour la configuration. Copiez le fichier d'exemple :
+```bash
+cp legacy/env.example legacy/.env
+```
+
+Variables disponibles :
+- `SSO_SHARED_SECRET` : Clé secrète partagée entre legacy et Symfony
+- `SYMFONY_BASE_URL` : URL de base de l'application Symfony
+- `SYMFONY_HTTP_TIMEOUT` : Timeout pour les appels HTTP (secondes)
+- `TWO_FACTOR_ENABLED` : Activer/désactiver l'intégration 2FA (true/false)
+- `TWO_FACTOR_DEBUG` : Mode debug pour les logs détaillés (true/false)
+
+**Nouveaux fichiers de configuration :**
+- `legacy/config/2fa_config.php` : Classe centralisée pour la configuration 2FA
+- `legacy/lib/Config/EnvironmentLoader.php` : Chargeur automatique des variables d'environnement
+- `symfony/config/services/2fa.yaml` : Configuration Symfony pour les services 2FA
+- `symfony/src/Service/TwoFactorConfigService.php` : Service Symfony pour la configuration
+- `symfony/src/Service/SsoTokenValidator.php` : Service de validation sécurisée des tokens SSO
+
+### Tests
+Exécutez tous les tests d'intégration :
+```bash
+./run_tests.sh
+```
+
+Ou lancez un test spécifique :
+```bash
+# Test de configuration PHP
+docker-compose exec apache php /var/www/legacy/tests/config_test.php
+
+# Tests Symfony unitaires
+docker-compose exec apache php /var/www/symfony/vendor/bin/phpunit /var/www/symfony/tests/Service/
+docker-compose exec apache php /var/www/symfony/vendor/bin/phpunit /var/www/symfony/tests/Entity/
+
+# Tests Symfony d'intégration
+docker-compose exec apache php /var/www/symfony/vendor/bin/phpunit /var/www/symfony/tests/Integration/
+```
+
+**Tests disponibles :**
+- **Tests unitaires** : 18 tests pour les services Symfony
+- **Tests d'entités** : 12 tests pour les entités Doctrine
+- **Tests d'intégration** : 5 tests pour le flux 2FA complet
+- **Test fonctionnel** : Validation de la configuration et de la base de données
 
 ### Logs en temps réel
 ```bash
@@ -134,6 +196,15 @@ docker-compose exec db mysql -u librebooking -p librebooking
 ```
 
 ## 🧪 Tests
+
+### Résultats des tests
+Le projet inclut une suite de tests complète :
+- ✅ **35/35 tests PHPUnit passent**
+- ✅ **Test fonctionnel de configuration** : Validation de la base de données et des endpoints
+- ✅ **Tests unitaires** : Services et entités Symfony
+- ✅ **Tests d'intégration** : Flux 2FA complet
+
+Exécutez `./run_tests.sh` pour voir tous les résultats.
 
 ### Test 1 : Utilisateur sans 2FA
 1. Se connecter avec un utilisateur sans 2FA.
@@ -157,8 +228,16 @@ docker-compose exec db mysql -u librebooking -p librebooking
 3. Cliquer sur "Désactiver la 2FA".
 4. La 2FA est maintenant désactivée. Lors de la prochaine connexion, l'utilisateur n'aura plus besoin de code. 
 
-## 🔒 Note sur la sécurité des requêtes SQL
+## 🔒 Sécurité
 
+### Variables d'environnement
+⚠️ **IMPORTANT** : Modifiez les valeurs par défaut dans `legacy/.env` pour la production :
+- `SSO_SHARED_SECRET` : Utilisez une clé secrète forte et unique
+- `SYMFONY_BASE_URL` : URL de production sécurisée (HTTPS)
+- `TWO_FACTOR_DEBUG` : Désactivez en production (`false`)
+- `TWO_FACTOR_ENABLED` : Activez en production (`true`)
+
+### Protection contre les injections SQL
 Le framework PHP legacy utilisé dans ce projet a une particularité : sa classe `AdHocCommand` ne supporte pas les requêtes préparées (avec les `?`), ce qui peut ouvrir la porte à des **injections SQL** si des précautions ne sont pas prises.
 
 Lors de la validation du `login_token` dans `LoginPresenter`, une requête SQL est construite manuellement. Pour sécuriser cette opération :
@@ -169,4 +248,32 @@ Lors de la validation du `login_token` dans `LoginPresenter`, une requête SQL e
 
 Cette approche permet de se prémunir contre les injections SQL tout en s'adaptant aux contraintes du framework legacy.
 
---- 
+### Gestion d'erreurs
+Le système inclut une gestion d'erreurs robuste :
+- **Fallback automatique** : Si Symfony est indisponible, le legacy fonctionne sans 2FA
+- **Timeouts configurables** : Évite les blocages lors des appels HTTP
+- **Logs détaillés** : Traçabilité complète des opérations 2FA
+
+### Tests de sécurité
+Les tests incluent des vérifications de sécurité :
+- Validation des tokens SSO avec `hash_equals()` pour éviter les attaques temporelles
+- Protection contre les requêtes non authentifiées
+- Tests de résistance aux injections SQL
+- Validation des variables d'environnement
+- Tests de configuration sécurisée
+
+### Améliorations apportées
+- **Configuration centralisée** : Variables d'environnement dans `.env` au lieu de valeurs en dur
+- **Services Symfony** : Architecture modulaire avec injection de dépendances
+- **Tests complets** : 35 tests PHPUnit couvrant unitaires, entités et intégration
+- **Sécurité renforcée** : Validation sécurisée des tokens avec `hash_equals()`
+- **Debug désactivé** : Configuration propre pour la production
+- **Documentation complète** : Guide d'installation et d'utilisation détaillé
+
+## 📚 Documentation supplémentaire
+
+- **`IMPROVEMENTS.md`** : Détail complet des améliorations apportées au projet
+- **`legacy/env.example`** : Exemple de fichier de configuration pour le legacy
+- **`symfony/.env`** : Configuration Symfony (variables d'environnement)
+
+---

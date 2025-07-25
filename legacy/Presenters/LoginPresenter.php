@@ -240,8 +240,23 @@ class LoginPresenter
      */
     private function checkTwoFactorAuth($userId)
     {
-        $ssoSharedSecret = "CHANGE_ME_IN_PRODUCTION_a_super_secret_key_12345"; // Doit correspondre au .env de Symfony
-        $symfonyUrl = 'http://apache:80/symfony/api/internal/sso/login';
+        // Charger la configuration 2FA
+        require_once(ROOT_DIR . 'config/2fa_config.php');
+        
+        // Vérifier si l'intégration 2FA est activée
+        if (!TwoFactorConfig::isEnabled()) {
+            Log::Debug('[2FA] Integration disabled, proceeding with legacy login only.');
+            $loginContext = new WebLoginContext(new LoginData($this->rememberMe));
+            if ($this->authentication->Login($this->_page->GetEmailAddress(), $this->_page->GetPassword(), $loginContext)) {
+                return true;
+            }
+            $this->_Redirect();
+            return false;
+        }
+
+        $ssoSharedSecret = TwoFactorConfig::getSsoSharedSecret();
+        $symfonyUrl = TwoFactorConfig::getSsoLoginUrl();
+        $timeout = TwoFactorConfig::getHttpTimeout();
 
         $postData = http_build_query(['user_id' => $userId]);
 
@@ -252,7 +267,7 @@ class LoginPresenter
                             "X-SSO-TOKEN: " . $ssoSharedSecret . "\r\n" .
                             "Content-Length: " . strlen($postData) . "\r\n",
                 'content' => $postData,
-                'timeout' => 5,
+                'timeout' => $timeout,
                 'ignore_errors' => true
             ]
         ]);
@@ -292,7 +307,7 @@ class LoginPresenter
 
         if ($has2FAEnabled) {
             // Redirige vers la vérification de code 2FA sur Symfony
-            header('Location: /symfony/security/2fa/login?user_id=' . urlencode($userId));
+            header('Location: ' . TwoFactorConfig::get2faLoginUrl() . '?user_id=' . urlencode($userId));
             exit;
         }
 
@@ -345,23 +360,30 @@ class LoginPresenter
     {
         $userSession = ServiceLocator::GetServer()->GetUserSession();
         $userId = $userSession->UserId;
-        $ssoSharedSecret = "CHANGE_ME_IN_PRODUCTION_a_super_secret_key_12345"; // Doit correspondre au .env de Symfony
+        
+        // Charger la configuration 2FA
+        require_once(ROOT_DIR . 'config/2fa_config.php');
+        
+        if (TwoFactorConfig::isEnabled()) {
+            $ssoSharedSecret = TwoFactorConfig::getSsoSharedSecret();
+            $symfonyUrl = TwoFactorConfig::getSsoLogoutUrl();
+            $timeout = TwoFactorConfig::getHttpTimeout();
 
-        // SSO Logout: Notifier Symfony pour détruire sa session
-        $symfonyUrl = 'http://apache:80/symfony/api/internal/sso/logout';
-        $postData = http_build_query(['user_id' => $userId]);
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'POST',
-                'header' => "Content-Type: application/x-www-form-urlencoded\r\n" .
-                            "X-SSO-TOKEN: " . $ssoSharedSecret . "\r\n",
-                'content' => $postData,
-                'timeout' => 3,
-                'ignore_errors' => true
-            ]
-        ]);
-        @file_get_contents($symfonyUrl, false, $context);
-        // On ne vérifie pas la réponse, la déconnexion legacy doit se poursuivre quoi qu'il arrive
+            // SSO Logout: Notifier Symfony pour détruire sa session
+            $postData = http_build_query(['user_id' => $userId]);
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => "Content-Type: application/x-www-form-urlencoded\r\n" .
+                                "X-SSO-TOKEN: " . $ssoSharedSecret . "\r\n",
+                    'content' => $postData,
+                    'timeout' => $timeout,
+                    'ignore_errors' => true
+                ]
+            ]);
+            @file_get_contents($symfonyUrl, false, $context);
+            // On ne vérifie pas la réponse, la déconnexion legacy doit se poursuivre quoi qu'il arrive
+        }
 
         $url = Configuration::Instance()->GetKey(ConfigKeys::LOGOUT_URL);
         if (empty($url)) {

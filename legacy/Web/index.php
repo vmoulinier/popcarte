@@ -7,6 +7,11 @@ if (session_status() === PHP_SESSION_NONE) {
 // Fin de l'harmonisation
 
 define('ROOT_DIR', '../');
+
+// Charger les variables d'environnement
+require_once(ROOT_DIR . 'lib/Config/EnvironmentLoader.php');
+EnvironmentLoader::load();
+
 require_once(ROOT_DIR . 'lib/Config/namespace.php');
 require_once(ROOT_DIR . 'lib/Common/namespace.php');
 require_once(ROOT_DIR . 'Pages/LoginPage.php');
