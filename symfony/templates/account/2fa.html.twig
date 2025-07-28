@@ -1,0 +1,72 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}LibreBooking - Authentification à deux facteurs{% endblock %}
+
+{% block stylesheets %}
+	<link rel="stylesheet" href="{{ asset('css/2fa.css') }}">
+{% endblock %}
+
+{% block body %}
+<div class="container-fluid">
+    <div class="card">
+        <div class="header">
+            <h1 class="title">Gérer la double authentification (2FA)</h1>
+            <p class="subtitle">Sécurisez votre compte avec une couche de protection supplémentaire.</p>
+        </div>
+
+        {% for label, messages in app.flashes %}
+            {% for message in messages %}
+                <div class="alert alert-{{ label }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endfor %}
+
+        {% if is_enabled %}
+            <div class="alert alert-success">
+                La double authentification est actuellement <strong>activée</strong>.
+            </div>
+            <p style="padding: 0 15px;">Votre compte est protégé. Vous pouvez désactiver cette fonctionnalité si nécessaire.</p>
+            
+            <form method="post" action="{{ path('app_account_2fa_disable') }}" onsubmit="return confirm('Êtes-vous sûr de vouloir désactiver la 2FA ?')">
+                <input type="hidden" name="user_id" value="{{ user_id }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('disable-2fa') }}">
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-danger">Désactiver la 2FA</button>
+                </div>
+            </form>
+        {% else %}
+            <div class="alert alert-warning">
+                 La double authentification est actuellement <strong>désactivée</strong>.
+            </div>
+
+            <div class="step">
+                <div class="step-title"><span class="step-number">1</span> Scannez le QR Code</div>
+                <div class="qr-container">
+                    <img src="{{ qr_code }}" alt="QR Code 2FA">
+                    <p class="mt-2 text-muted" style="font-size: 12px;">Ou entrez ce code manuellement : <code>{{ secret }}</code></p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-title"><span class="step-number">2</span> Validez le code</div>
+                <form method="post" action="{{ path('app_account_2fa_activate') }}">
+                    <input type="hidden" name="user_id" value="{{ user_id }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('activate-2fa') }}">
+                    <div class="mb-3">
+                        <label for="code" class="form-label visually-hidden">Code de vérification</label>
+                        <input type="text" id="code" name="code" class="form-input" required autofocus autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" placeholder="123456">
+                    </div>
+                    <div class="btn-group">
+                         <button type="submit" class="btn btn-primary">Activer et se connecter</button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
+
+        <div class="btn-footer">
+            <a href="/Web/dashboard.php" class="btn-link-discreet">Retour à l'accueil</a>
+        </div>
+    </div>
+</div>
+{% endblock %} 

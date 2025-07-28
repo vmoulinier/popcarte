@@ -1,0 +1,10 @@
+framework:
+    rate_limiter:
+        two_factor_auth:
+            policy: 'fixed_window'
+            limit: 5
+            interval: '1 minutes'
+        two_factor_auth_ip:
+            policy: 'fixed_window'
+            limit: 10
+            interval: '1 minutes' 

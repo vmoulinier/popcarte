@@ -1,0 +1,51 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Vérification 2FA
+{% endblock %}
+
+{% block stylesheets %}
+	<link rel="stylesheet" href="{{ asset('css/2fa.css') }}">
+{% endblock %}
+
+
+{% block body %}
+	<div class="container-fluid">
+		<div class="card">
+			<div class="header">
+				<h1 class="title">Vérification à deux facteurs</h1>
+				<p class="subtitle">Veuillez entrer le code de votre application d'authentification.</p>
+			</div>
+
+			{% for label, messages in app.flashes %}
+				{% for message in messages %}
+					<div class="alert alert-{{ label }}">
+						{{ message }}
+					</div>
+				{% endfor %}
+			{% endfor %}
+
+			<div class="step">
+				{% if rate_limited is defined and rate_limited %}
+					<div class="alert alert-danger">
+						<strong>Compte temporairement bloqué</strong><br>
+						Trop de tentatives échouées. Veuillez réessayer dans {{ retry_after_minutes }} minutes.
+					</div>
+					<div class="btn-group">
+						<a href="/Web/index.php" class="btn btn-secondary">Retour à la connexion</a>
+					</div>
+				{% else %}
+					<form method="post" action="{{ path('app_security_2fa_login', {'user_id': user_id}) }}">
+						<div class="form-group">
+							<label for="code" class="form-label">Code de vérification :</label>
+							<input type="text" id="code" name="code" class="form-input" required autofocus autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" placeholder="123456">
+						</div>
+						<input type="hidden" name="user_id" value="{{ user_id }}">
+						<div class="btn-group">
+							<button type="submit" class="btn btn-primary">Valider</button>
+						</div>
+					</form>
+				{% endif %}
+			</div>
+		</div>
+	</div>
+{% endblock %}

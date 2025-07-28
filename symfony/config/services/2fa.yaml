@@ -1,0 +1,24 @@
+services:
+    # Configuration pour l'intégration 2FA
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # Service de configuration 2FA
+    App\Service\TwoFactorConfigService:
+        arguments:
+            $ssoSharedSecret: '%env(SSO_SHARED_SECRET)%'
+            $symfonyBaseUrl: '%env(SYMFONY_BASE_URL)%'
+            $httpTimeout: '%env(int:SYMFONY_HTTP_TIMEOUT)%'
+            $debugMode: '%env(bool:TWO_FACTOR_DEBUG)%'
+
+    # Service de gestion des sessions legacy
+    App\Service\LegacySessionManager:
+        arguments:
+            $logger: '@logger'
+
+    # Service de validation des tokens SSO
+    App\Service\SsoTokenValidator:
+        arguments:
+            $ssoSharedSecret: '%env(SSO_SHARED_SECRET)%'
+            $logger: '@logger' 
