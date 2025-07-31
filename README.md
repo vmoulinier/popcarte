@@ -2,6 +2,14 @@
 
 Ce projet implémente un système d'authentification à deux facteurs (2FA) pour une application PHP legacy (LibreBooking) en utilisant le **Strangler Pattern**. Une nouvelle application Symfony gère tout le processus 2FA, s'intégrant de manière transparente dans le flux de connexion existant.
 
+## 🔧 Technologies utilisées
+
+- **Symfony 7.3** : Framework moderne pour la gestion 2FA
+- **Scheb/2FA Bundle** : Bundle Symfony standard et sécurisé pour l'authentification à deux facteurs
+- **TOTP (Time-based One-Time Password)** : Standard RFC 6238 pour la génération de codes temporaires
+- **Endroid QR Code** : Génération de QR codes pour l'activation 2FA
+- **Docker & Docker Compose** : Environnement de développement containerisé
+
 ## 🚀 Démarrage rapide
 
 1.  **Prérequis**: Docker et Docker Compose.
@@ -82,8 +90,6 @@ Ce mécanisme de jeton POST assure une transition sécurisée et fiable entre le
     -   Contient la logique de vérification du statut 2FA après la validation du mot de passe.
     -   Contient les redirections vers Symfony.
     -   `LoginWithToken()`: Gère la connexion via le jeton POST reçu de Symfony, crée la session legacy.
--   `legacy/Web/install/`:
-    -   Contient les scripts et templates pour l'installation initiale de l'application legacy.
 -   `legacy/Web/index.php`:
     -   Modifié pour détecter la présence d'un `login_token` et déclencher la logique de connexion par jeton.
 -   `legacy/tpl/globalheader.tpl`:
@@ -99,14 +105,6 @@ Ce mécanisme de jeton POST assure une transition sécurisée et fiable entre le
     -   Le template qui contient le formulaire auto-soumis pour la transition de Symfony vers le legacy.
 
 ---
-
-## 🛠️ Configuration automatique
-
-Le système se configure automatiquement au démarrage :
-- ✅ Installation des dépendances Symfony
-- ✅ Exécution des migrations de base de données
-- ✅ Vidage du cache
-- ✅ Démarrage d'Apache
 
 ## 📁 Structure du projet
 
@@ -259,13 +257,6 @@ Le système inclut un **rate limiting intelligent** pour protéger contre les at
 
 Le rate limiting utilise le **composant natif Symfony Rate Limiter** avec une politique de fenêtre fixe pour une performance optimale.
 
-### Variables d'environnement
-⚠️ **IMPORTANT** : Modifiez les valeurs par défaut dans `legacy/.env` pour la production :
-- `SSO_SHARED_SECRET` : Utilisez une clé secrète forte et unique
-- `SYMFONY_BASE_URL` : URL de production sécurisée (HTTPS)
-- `TWO_FACTOR_DEBUG` : Désactivez en production (`false`)
-- `TWO_FACTOR_ENABLED` : Activez en production (`true`)
-
 ### Protection contre les injections SQL
 Le framework PHP legacy utilisé dans ce projet a une particularité : sa classe `AdHocCommand` ne supporte pas les requêtes préparées (avec les `?`), ce qui peut ouvrir la porte à des **injections SQL** si des précautions ne sont pas prises.
 
@@ -290,13 +281,5 @@ Les tests incluent des vérifications de sécurité :
 - Tests de résistance aux injections SQL
 - Validation des variables d'environnement
 - Tests de configuration sécurisée
-
-### Améliorations apportées
-- **Configuration centralisée** : Variables d'environnement dans `.env` au lieu de valeurs en dur
-- **Services Symfony** : Architecture modulaire avec injection de dépendances
-- **Tests complets** : 35 tests PHPUnit couvrant unitaires, entités et intégration
-- **Sécurité renforcée** : Validation sécurisée des tokens avec `hash_equals()`
-- **Debug désactivé** : Configuration propre pour la production
-- **Documentation complète** : Guide d'installation et d'utilisation détaillé
 
 ---
