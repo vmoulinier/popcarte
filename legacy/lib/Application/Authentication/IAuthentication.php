@@ -35,7 +35,7 @@ interface IAuthentication extends IAuthenticationPromptOptions, IAuthenticationA
      * @param ILoginContext $loginContext
      * @return UserSession
      */
-    public function Login($username, $password, $loginContext);
+    public function Login($username, $loginContext);
 
     /**
      * @param UserSession $user

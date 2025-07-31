@@ -137,6 +137,7 @@ class LoginPage extends Page implements ILoginPage
         $this->Set('SuccessMessage', null);
 
         $this->SetFacebookErrorMessage();
+        $this->SetLoginErrorMessage();
         $this->Set('AllowFacebookLogin', Configuration::Instance()->GetSectionKey(ConfigSection::AUTHENTICATION, ConfigKeys::AUTHENTICATION_ALLOW_FACEBOOK, new BooleanConverter()));
         $this->Set('AllowGoogleLogin', Configuration::Instance()->GetSectionKey(ConfigSection::AUTHENTICATION, ConfigKeys::AUTHENTICATION_ALLOW_GOOGLE, new BooleanConverter()));
         $this->Set('AllowMicrosoftLogin', Configuration::Instance()->GetSectionKey(ConfigSection::AUTHENTICATION, ConfigKeys::AUTHENTICATION_ALLOW_MICROSOFT, new BooleanConverter()));
@@ -352,6 +353,18 @@ class LoginPage extends Page implements ILoginPage
         if (isset($_SESSION['facebook_error']) && $_SESSION['facebook_error'] == true) {
             $this->Set('facebookError', $_SESSION['facebook_error']);
             unset($_SESSION['facebook_error']);
+        }
+    }
+
+    /**
+     * Handle login error messages from session
+     * After failed login, user is redirected to login page and shown an error message
+     */
+    private function SetLoginErrorMessage()
+    {
+        if (isset($_SESSION['login_error']) && $_SESSION['login_error'] == true) {
+            $this->Set('ShowLoginError', true);
+            unset($_SESSION['login_error']);
         }
     }
 

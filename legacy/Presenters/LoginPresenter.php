@@ -168,7 +168,7 @@ class LoginPresenter
             // Invalid credentials
             sleep(2);
             $this->authentication->HandleLoginFailure($this->_page);
-            $this->_page->SetShowLoginError();
+            $_SESSION['login_error'] = true;
             $this->_page->Redirect(Pages::LOGIN);
         }
     }
@@ -248,7 +248,7 @@ class LoginPresenter
         if (!TwoFactorConfig::isEnabled()) {
             Log::Debug('[2FA] Integration disabled, proceeding with legacy login only.');
             $loginContext = new WebLoginContext(new LoginData($this->rememberMe));
-            if ($this->authentication->Login($this->_page->GetEmailAddress(), $this->_page->GetPassword(), $loginContext)) {
+            if ($this->authentication->Login($this->_page->GetEmailAddress(), $loginContext)) {
                 return true;
             }
             $this->_Redirect();
@@ -314,7 +314,7 @@ class LoginPresenter
 
         // Si la 2FA n’est pas activée, on connecte immédiatement l’utilisateur côté legacy
         $loginContext = new WebLoginContext(new LoginData($this->rememberMe));
-        if ($this->authentication->Login($this->_page->GetEmailAddress(), $this->_page->GetPassword(), $loginContext)) {
+        if ($this->authentication->Login($this->_page->GetEmailAddress(), $loginContext)) {
             return true; // La méthode Login() se chargera d’effectuer la redirection finale
         }
 
